@@ -1,0 +1,39 @@
+# =============================================================================
+# ReleaseBindings: Per-Environment Roar Keys for the Support-Triage Agent
+# =============================================================================
+#
+# The trait reads each environment's Roar key from roar/<environment>, so
+# spend caps are isolated without any key configuration here:
+#   - Development:  roar/development (small-cap key), component default model
+#   - Production:   roar/production (larger-cap key), stronger model
+# =============================================================================
+
+# --- Development Environment ---
+apiVersion: openchoreo.dev/v1alpha1
+kind: ReleaseBinding
+metadata:
+  name: support-agent-development
+  namespace: default
+spec:
+  owner:
+    projectName: default
+    componentName: support-agent
+  environment: development
+
+---
+
+# --- Production Environment ---
+apiVersion: openchoreo.dev/v1alpha1
+kind: ReleaseBinding
+metadata:
+  name: support-agent-production
+  namespace: default
+spec:
+  owner:
+    projectName: default
+    componentName: support-agent
+  environment: production
+  traitEnvironmentConfigs:
+    # Key = trait instanceName from Component.spec.traits
+    llm:
+      model: claude-sonnet-5-5

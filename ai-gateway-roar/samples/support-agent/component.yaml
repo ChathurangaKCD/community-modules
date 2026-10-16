@@ -1,0 +1,54 @@
+# =============================================================================
+# Sample: Support-Triage Agent routed through Roar AI Cloud
+# =============================================================================
+#
+# A small FastAPI agent (./app) that triages support tickets with an LLM tool
+# call. The app uses the plain OpenAI SDK; the roar-ai-gateway trait injects
+# OPENAI_BASE_URL, OPENAI_API_KEY and LLM_MODEL.
+#
+# Prerequisites:
+#   - roar-ai-gateway ClusterTrait applied and allowed on deployment/service
+#   - One Roar key per environment stored in OpenBao:
+#       kubectl exec -it -n openbao openbao-0 -- bao kv put secret/roar/development/support-agent api-key='roar_live_...'
+#       kubectl exec -it -n openbao openbao-0 -- bao kv put secret/roar/production/support-agent  api-key='roar_live_...'
+#   - The ./app image built and pushed to a registry the data plane can pull
+# =============================================================================
+
+apiVersion: openchoreo.dev/v1alpha1
+kind: Component
+metadata:
+  name: support-agent
+  namespace: default
+spec:
+  owner:
+    projectName: default
+  # Deployed through the ReleaseBindings in releasebinding.yaml, because the
+  # trait requires a remoteKey for every environment.
+  autoDeploy: false
+  componentType:
+    kind: ClusterComponentType
+    name: deployment/service
+  traits:
+    - kind: ClusterTrait
+      name: roar-ai-gateway
+      instanceName: llm
+      parameters:
+        model: deepseek-v4.1-flash   # inexpensive model for bulk triage
+
+---
+
+apiVersion: openchoreo.dev/v1alpha1
+kind: Workload
+metadata:
+  name: support-agent
+  namespace: default
+spec:
+  owner:
+    projectName: default
+    componentName: support-agent
+  container:
+    image: <your-registry>/support-agent:0.1.0   # build from ./app
+  endpoints:
+    http:
+      type: HTTP
+      port: 8000

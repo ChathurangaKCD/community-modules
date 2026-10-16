@@ -1,0 +1,105 @@
+# ClusterTrait: roar-ai-gateway
+#
+# Route a component's LLM traffic through the Roar AI Cloud gateway
+# (https://roar-ai.com/gateway), a managed, OpenAI-compatible gateway with
+# 200+ models, per-key spend caps and data guardrails.
+#
+# Attach it to any component. The trait:
+#   - Creates an ExternalSecret that pulls this environment's Roar API key
+#     from the data plane's ClusterSecretStore (OpenBao by default)
+#   - Injects OPENAI_BASE_URL, OPENAI_API_KEY and LLM_MODEL into the workload
+#
+# The key is resolved per environment from the secret store path
+# roar/<environment> (e.g. roar/development, roar/production), so each
+# environment gets its own spend cap, enforced by Roar, and developers do not
+# configure keys. Override the path for an environment with the remoteKey
+# environment config (ReleaseBinding traitEnvironmentConfigs).
+#
+# Roar is egress-only: there is nothing to install in the cluster and no
+# Gateway API resources are involved.
+#
+apiVersion: openchoreo.dev/v1alpha1
+kind: ClusterTrait
+metadata:
+  name: roar-ai-gateway
+spec:
+  parameters:
+    openAPIV3Schema:
+      type: object
+      properties:
+        model:
+          type: string
+          default: "llama-3.3-70b"
+          description: "Model ID routed through Roar (GET https://api.roar-ai.com/v1/models lists models for a key)"
+        baseUrl:
+          type: string
+          default: "https://api.roar-ai.com/v1"
+          description: "Roar AI gateway base URL (OpenAI-compatible)"
+        apiKeyProperty:
+          type: string
+          default: "api-key"
+          description: "Property inside the remote secret that holds the roar_live_... key"
+
+  # Per-environment overrides set via ReleaseBinding.spec.traitEnvironmentConfigs.
+  environmentConfigs:
+    openAPIV3Schema:
+      type: object
+      properties:
+        remoteKey:
+          type: string
+          minLength: 1
+          description: "Optional secret store path of this environment's Roar API key. Defaults to roar/<environment>"
+        model:
+          type: string
+          description: "Optional per-environment model override"
+
+  creates:
+    # ExternalSecret — pulls this environment's Roar key into the data plane.
+    - targetPlane: dataplane
+      template:
+        apiVersion: external-secrets.io/v1
+        kind: ExternalSecret
+        metadata:
+          name: ${metadata.name}-${trait.instanceName}-roar
+          namespace: ${metadata.namespace}
+        spec:
+          refreshInterval: 1h
+          secretStoreRef:
+            kind: ClusterSecretStore
+            name: ${dataplane.secretStore}
+          target:
+            name: ${metadata.name}-${trait.instanceName}-roar
+            creationPolicy: Owner
+          data:
+            - secretKey: api-key
+              remoteRef:
+                key: "${has(environmentConfigs.remoteKey) ? environmentConfigs.remoteKey : 'roar/' + metadata.environmentName}"
+                property: ${parameters.apiKeyProperty}
+
+  patches:
+    - target:
+        group: apps
+        version: v1
+        kind: Deployment
+      operations:
+        # OPENAI_BASE_URL — read by the OpenAI SDKs, LangChain, CrewAI, LlamaIndex, ...
+        - op: add
+          path: /spec/template/spec/containers/0/env/-
+          value:
+            name: OPENAI_BASE_URL
+            value: ${parameters.baseUrl}
+        # OPENAI_API_KEY — the environment-specific Roar key
+        - op: add
+          path: /spec/template/spec/containers/0/env/-
+          value:
+            name: OPENAI_API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: ${metadata.name}-${trait.instanceName}-roar
+                key: api-key
+        # LLM_MODEL — environment override wins over the component default
+        - op: add
+          path: /spec/template/spec/containers/0/env/-
+          value:
+            name: LLM_MODEL
+            value: "${has(environmentConfigs.model) ? environmentConfigs.model : parameters.model}"
