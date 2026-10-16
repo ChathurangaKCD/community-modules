@@ -51,6 +51,8 @@ type AuditLogsQueryParams struct {
 	ResourceResources    []string
 	ResourceNames        []string
 
+	ReturnedItemNames []string
+
 	Actions      []string
 	Categories   []string
 	Results      []string
@@ -125,6 +127,8 @@ func auditFilters(params AuditLogsQueryParams) []map[string]interface{} {
 	filters = addTermsFilter(filters, "resource.component", params.ResourceComponents)
 	filters = addTermsFilter(filters, "resource.resource", params.ResourceResources)
 	filters = addTermsFilter(filters, "resource.name", params.ResourceNames)
+
+	filters = addTermsFilter(filters, "returned.items.name", params.ReturnedItemNames)
 
 	filters = addTermsFilter(filters, "action", params.Actions)
 	filters = addTermsFilter(filters, "category", params.Categories)

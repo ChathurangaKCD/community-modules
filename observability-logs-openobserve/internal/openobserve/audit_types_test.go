@@ -4,6 +4,7 @@
 package openobserve
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -40,6 +41,62 @@ func TestParseAuditRecord_ReadsTheRecordFromTheLogLine(t *testing.T) {
 		NamespaceName: "openchoreo-control-plane", PodName: "api-0", ContainerName: "api-server",
 	}) {
 		t.Errorf("collector = %+v", record.Collector)
+	}
+}
+
+// The flattened columns lowercase keys and merge nested ones, so the log line is the only
+// faithful copy.
+func TestParseAuditRecord_ReadsRequestAndReturnedFromTheLogLine(t *testing.T) {
+	line := strings.Replace(auditLine, `"schema_version":"1.0"`, `"schema_version":"1.1"`, 1)
+	line = strings.TrimSuffix(line, "}") +
+		`,"request":{"parameters":{"sinceSeconds":3600,"actor":{"id":["alice"]},"actor_id":"bob"}},` +
+		`"returned":{"count":3,"items":[` +
+		`{"type":"secret","namespace":"acme","name":"db-creds","uid":"uid-a"},` +
+		`{"type":"secret","namespace":"acme","name":"api-key","uid":"uid-b"}]}}`
+
+	record, err := ParseAuditRecord(map[string]interface{}{
+		"log":                             line,
+		"request_parameters_sinceseconds": float64(3600),
+		"returned_items":                  `[{"name":"flattened columns are not the source"}]`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if record.Request == nil {
+		t.Fatal("request = nil, want the published parameters")
+	}
+	wantParameters := map[string]any{
+		"sinceSeconds": float64(3600),
+		"actor":        map[string]any{"id": []any{"alice"}},
+		"actor_id":     "bob",
+	}
+	if !reflect.DeepEqual(record.Request.Parameters, wantParameters) {
+		t.Errorf("request.parameters = %v, want %v", record.Request.Parameters, wantParameters)
+	}
+
+	wantReturned := &AuditReturned{
+		Count: 3,
+		Items: []AuditReturnedItem{
+			{Type: "secret", Namespace: "acme", Name: "db-creds", UID: "uid-a"},
+			{Type: "secret", Namespace: "acme", Name: "api-key", UID: "uid-b"},
+		},
+	}
+	if !reflect.DeepEqual(record.Returned, wantReturned) {
+		t.Errorf("returned = %+v, want %+v", record.Returned, wantReturned)
+	}
+}
+
+func TestParseAuditRecord_LeavesAbsentGroupsNil(t *testing.T) {
+	record, err := ParseAuditRecord(map[string]interface{}{"log": auditLine})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if record.Request != nil {
+		t.Errorf("request = %+v, want nil", record.Request)
+	}
+	if record.Returned != nil {
+		t.Errorf("returned = %+v, want nil", record.Returned)
 	}
 }
 

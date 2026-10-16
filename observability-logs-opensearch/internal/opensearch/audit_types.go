@@ -27,6 +27,8 @@ type AuditRecord struct {
 	OperationID   string         `json:"operation_id"`
 	HTTP          *AuditHTTPInfo `json:"http"`
 	Resource      *AuditResource `json:"resource"`
+	Request       *AuditRequest  `json:"request"`
+	Returned      *AuditReturned `json:"returned"`
 	Metadata      map[string]any `json:"metadata"`
 
 	// Stamped by the collector rather than the emitting service, so they are worth
@@ -65,6 +67,27 @@ type AuditResource struct {
 	UID         string         `json:"uid"`
 	Name        string         `json:"name"`
 	Metadata    map[string]any `json:"metadata"`
+}
+
+// AuditRequest is what the operation was asked for. The index template leaves it
+// unmapped, so it is kept in _source but cannot be searched.
+type AuditRequest struct {
+	Parameters map[string]any `json:"parameters"`
+}
+
+// AuditReturned is what the operation handed back. Count can exceed len(Items) when the
+// producer cut the list.
+type AuditReturned struct {
+	Count int                 `json:"count"`
+	Items []AuditReturnedItem `json:"items"`
+}
+
+// AuditReturnedItem is one object the operation returned.
+type AuditReturnedItem struct {
+	Type      string `json:"type"`
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+	UID       string `json:"uid"`
 }
 
 // AuditCollectorInfo is where the collector read the record from.

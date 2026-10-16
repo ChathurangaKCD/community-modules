@@ -232,6 +232,10 @@ auditLogsIndexPattern="${auditLogsIndexPrefix}*"
 # actor.entitlements keys vary by subject kind, so they cannot be declared ahead of time.
 # Each claim is copied into actor.entitlement_values, which the filter and value picker
 # read instead.
+#
+# returned.items is a plain object rather than nested, so a terms query on
+# returned.items.name matches without a nested query. request is left out on purpose:
+# its parameters are kept in _source and returned, never searched.
 auditLogsIndexTemplate='
 {
   "index_patterns": [
@@ -355,6 +359,29 @@ auditLogsIndexTemplate='
             },
             "name": {
               "type": "keyword"
+            }
+          }
+        },
+        "returned": {
+          "properties": {
+            "count": {
+              "type": "long"
+            },
+            "items": {
+              "properties": {
+                "type": {
+                  "type": "keyword"
+                },
+                "namespace": {
+                  "type": "keyword"
+                },
+                "name": {
+                  "type": "keyword"
+                },
+                "uid": {
+                  "type": "keyword"
+                }
+              }
             }
           }
         },

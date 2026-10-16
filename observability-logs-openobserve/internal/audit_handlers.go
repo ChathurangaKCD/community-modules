@@ -237,6 +237,10 @@ func toAuditLogsParams(body *gen.AuditLogsQueryRequest) openobserve.AuditLogsPar
 		params.ResourceNames = derefSlice(body.Resource.Name)
 	}
 
+	if body.Returned != nil && body.Returned.Items != nil {
+		params.ReturnedItemNames = derefSlice(body.Returned.Items.Name)
+	}
+
 	if body.Category != nil {
 		for _, c := range *body.Category {
 			params.Categories = append(params.Categories, string(c))
@@ -364,6 +368,30 @@ func toGenAuditLogRecord(r openobserve.AuditRecord) gen.AuditLogRecord {
 			resource.Metadata = &metadata
 		}
 		record.Resource = &resource
+	}
+	if r.Request != nil {
+		request := gen.AuditLogRequest{}
+		if r.Request.Parameters != nil {
+			parameters := r.Request.Parameters
+			request.Parameters = &parameters
+		}
+		record.Request = &request
+	}
+	if r.Returned != nil {
+		returned := gen.AuditLogReturned{Count: r.Returned.Count}
+		if r.Returned.Items != nil {
+			items := make([]gen.AuditLogReturnedItem, 0, len(r.Returned.Items))
+			for _, item := range r.Returned.Items {
+				items = append(items, gen.AuditLogReturnedItem{
+					Type:      item.Type,
+					Namespace: strPtr(item.Namespace),
+					Name:      item.Name,
+					Uid:       strPtr(item.UID),
+				})
+			}
+			returned.Items = &items
+		}
+		record.Returned = &returned
 	}
 
 	collector := gen.AuditLogCollectorInfo{

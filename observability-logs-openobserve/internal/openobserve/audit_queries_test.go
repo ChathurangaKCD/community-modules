@@ -89,6 +89,46 @@ func TestAuditConditions_RejectsAnEntitlementFilterWithNoClaimStored(t *testing.
 	}
 }
 
+func TestAuditConditions_MatchesAReturnedItemNameAnchoredOnItsKey(t *testing.T) {
+	conditions, ok := auditConditions(AuditLogsParams{
+		ResourceTypes:     []string{"secret"},
+		ReturnedItemNames: []string{"db-creds", "api-key"},
+	}, auditColumns("resource_type", "returned_items"))
+	if !ok {
+		t.Fatal("expected the conditions to be buildable")
+	}
+
+	want := []string{
+		`(resource_type = 'secret')`,
+		`(strpos(returned_items, '"name":"db-creds"') > 0 OR strpos(returned_items, '"name":"api-key"') > 0)`,
+	}
+	if strings.Join(conditions, " AND ") != strings.Join(want, " AND ") {
+		t.Errorf("got %v, want %v", conditions, want)
+	}
+}
+
+func TestAuditConditions_EscapesAReturnedItemNameForJSONAndSQL(t *testing.T) {
+	conditions, ok := auditConditions(AuditLogsParams{
+		ReturnedItemNames: []string{`it's "a"<b>\c`},
+	}, auditColumns("returned_items"))
+	if !ok {
+		t.Fatal("expected the conditions to be buildable")
+	}
+
+	want := `(strpos(returned_items, '"name":"it''s \"a\"<b>\\c"') > 0)`
+	if len(conditions) != 1 || conditions[0] != want {
+		t.Errorf("got %v, want %s", conditions, want)
+	}
+}
+
+func TestAuditConditions_RejectsAReturnedItemFilterWithNoItemsStored(t *testing.T) {
+	if _, ok := auditConditions(AuditLogsParams{
+		ReturnedItemNames: []string{"db-creds"},
+	}, auditColumns("actor_id", "returned_count")); ok {
+		t.Error("expected a returned item filter with no returned_items column to match nothing")
+	}
+}
+
 func TestAuditConditions_MatchesTheSearchPhraseLiterally(t *testing.T) {
 	conditions, ok := auditConditions(AuditLogsParams{SearchPhrase: "50%_'off"}, auditColumns("log"))
 	if !ok {

@@ -4,6 +4,7 @@
 package openobserve
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -21,6 +22,9 @@ const (
 	auditEntitlementColumnPrefix = "actor_entitlements_"
 	colEventID                   = "event_id"
 	colResult                    = "result"
+
+	// OpenObserve stores an array of objects as one JSON string column.
+	colReturnedItems = "returned_items"
 
 	maxTimelineBuckets = 500
 
@@ -125,6 +129,18 @@ func auditConditions(params AuditLogsParams, columns map[string]bool) ([]string,
 		conditions = append(conditions, "("+strings.Join(parts, " OR ")+")")
 	}
 
+	if len(params.ReturnedItemNames) > 0 {
+		if !columns[colReturnedItems] {
+			return nil, false
+		}
+		parts := make([]string, 0, len(params.ReturnedItemNames))
+		for _, name := range params.ReturnedItemNames {
+			parts = append(parts,
+				"strpos("+colReturnedItems+", "+auditSQLString(returnedItemNameNeedle(name))+") > 0")
+		}
+		conditions = append(conditions, "("+strings.Join(parts, " OR ")+")")
+	}
+
 	if params.SearchPhrase != "" {
 		if !columns[colLog] {
 			return nil, false
@@ -136,6 +152,17 @@ func auditConditions(params AuditLogsParams, columns map[string]bool) ([]string,
 	}
 
 	return conditions, true
+}
+
+// returnedItemNameNeedle is an item's "name" pair as stored in returned_items. The
+// closing quote keeps db-creds from matching db-creds-old, and JSON-escaping the value
+// stops a quote in it from reaching into the next item.
+func returnedItemNameNeedle(name string) string {
+	var b bytes.Buffer
+	enc := json.NewEncoder(&b)
+	enc.SetEscapeHTML(false)
+	_ = enc.Encode(name)
+	return `"name":` + strings.TrimSuffix(b.String(), "\n")
 }
 
 // auditEntitlementColumns returns the stored claim columns, sorted for stable SQL.

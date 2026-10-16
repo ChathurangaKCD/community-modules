@@ -286,8 +286,8 @@ This chart only ships records to that OpenObserve. It does not configure it, and
   than `ZO_INGEST_ALLOWED_UPTO` hours. The bundled OpenObserve charts set it to `8760` to match
   the default retention. If you raise `auditLogsRetentionDays`, or ship to an OpenObserve this
   chart does not install, set it accordingly, or audit records delivered late are dropped.
-- `resource.metadata` and `metadata` are returned in full, but OpenObserve flattens them into
-  columns on ingest, so each distinct key adds a column to the stream.
+- `resource.metadata`, `metadata` and `request.parameters` are returned in full, but OpenObserve
+  flattens them into columns on ingest, so each distinct key adds a column to the stream.
 
 ## Applying Fluent Bit configuration changes
 

@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -154,6 +155,108 @@ func TestQueryAuditLogs_ReturnsRecordsTotalAndTimeline(t *testing.T) {
 	}
 	for _, s := range searches {
 		if !strings.Contains(s.SQL, "(result = 'denied')") {
+			t.Errorf("search does not apply the filter: %s", s.SQL)
+		}
+	}
+}
+
+// publishedAuditLine is a 1.1 record as the producer writes it.
+const publishedAuditLine = `{"schema_version":"1.1","event_id":"0192-b","event_time":"2026-09-16T12:20:00Z",` +
+	`"actor":{"type":"user","id":"u1"},"action":"list_secrets","category":"access","result":"success",` +
+	`"producer":"openchoreo-api","surface":"rest","operation_id":"ListSecrets",` +
+	`"resource":{"type":"secret","namespace":"acme"},` +
+	`"request":{"parameters":{"container":"api","sinceSeconds":3600,` +
+	`"actor":{"id":["alice"]},"search_scope":{"namespace":"acme"}}},` +
+	`"returned":{"count":2,"items":[` +
+	`{"type":"secret","namespace":"acme","name":"db-creds","uid":"uid-a"},` +
+	`{"type":"secret","namespace":"acme","name":"api-key","uid":"uid-b"}]}}`
+
+func TestToGenAuditLogRecord_ReturnsRequestAndReturnedAsPublished(t *testing.T) {
+	parsed, err := openobserve.ParseAuditRecord(map[string]interface{}{"log": publishedAuditLine})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	served, err := json.Marshal(toGenAuditLogRecord(parsed))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got, want map[string]interface{}
+	if err := json.Unmarshal(served, &got); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal([]byte(publishedAuditLine), &want); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, group := range []string{"request", "returned"} {
+		if !reflect.DeepEqual(got[group], want[group]) {
+			t.Errorf("%s = %v, want %v", group, got[group], want[group])
+		}
+	}
+	if got["schema_version"] != "1.1" {
+		t.Errorf("schema_version = %v, want it served as stored", got["schema_version"])
+	}
+}
+
+func TestToGenAuditLogRecord_KeepsAReturnedCountOfZero(t *testing.T) {
+	line := strings.TrimSuffix(auditTestLine, "}") + `,"returned":{"count":0}}`
+	parsed, err := openobserve.ParseAuditRecord(map[string]interface{}{"log": line})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	record := toGenAuditLogRecord(parsed)
+	if record.Returned == nil {
+		t.Fatal("returned = nil, want a count of 0")
+	}
+	if record.Returned.Count != 0 || record.Returned.Items != nil {
+		t.Errorf("returned = %+v, want count 0 and no items", record.Returned)
+	}
+}
+
+func TestQueryAuditLogs_LeavesAbsentGroupsOutOfA10Record(t *testing.T) {
+	server := auditServer(t, storedAuditColumns, nil)
+	defer server.Close()
+
+	resp, err := auditHandler(server.URL).QueryAuditLogs(context.Background(), gen.QueryAuditLogsRequestObject{
+		Body: &gen.AuditLogsQueryRequest{StartTime: auditStart, EndTime: auditEnd},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ok, isOK := resp.(gen.QueryAuditLogs200JSONResponse)
+	if !isOK || len(ok.Records) != 1 {
+		t.Fatalf("got %+v, want one record", resp)
+	}
+	if ok.Records[0].Request != nil || ok.Records[0].Returned != nil {
+		t.Errorf("request = %+v, returned = %+v, want both nil", ok.Records[0].Request, ok.Records[0].Returned)
+	}
+}
+
+func TestQueryAuditLogs_FiltersOnReturnedItemNames(t *testing.T) {
+	var searches []auditSearch
+	server := auditServer(t, append(storedAuditColumns, "returned_items"), &searches)
+	defer server.Close()
+
+	_, err := auditHandler(server.URL).QueryAuditLogs(context.Background(), gen.QueryAuditLogsRequestObject{
+		Body: &gen.AuditLogsQueryRequest{
+			StartTime: auditStart,
+			EndTime:   auditEnd,
+			Returned: &gen.AuditLogsReturnedFilter{
+				Items: &gen.AuditLogsReturnedItemsFilter{Name: &[]string{"db-creds"}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(searches) == 0 {
+		t.Fatal("sent no searches")
+	}
+	for _, s := range searches {
+		if !strings.Contains(s.SQL, `(strpos(returned_items, '"name":"db-creds"') > 0)`) {
 			t.Errorf("search does not apply the filter: %s", s.SQL)
 		}
 	}

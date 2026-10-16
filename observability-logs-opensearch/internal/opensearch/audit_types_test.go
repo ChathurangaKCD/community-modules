@@ -3,7 +3,10 @@
 
 package opensearch
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 // completeAuditSource carries every field the contract requires.
 func completeAuditSource() map[string]interface{} {
@@ -31,6 +34,64 @@ func TestParseAuditRecord_ReadsACompleteRecord(t *testing.T) {
 	}
 	if record.Actor.ID != "user-1" || record.Actor.Type != "user" {
 		t.Errorf("actor = %+v", record.Actor)
+	}
+}
+
+func TestParseAuditRecord_ReadsRequestAndReturned(t *testing.T) {
+	source := completeAuditSource()
+	source["schema_version"] = "1.1"
+	source["request"] = map[string]interface{}{
+		"parameters": map[string]interface{}{
+			"sinceSeconds": float64(3600),
+			"actor":        map[string]interface{}{"id": []interface{}{"alice"}},
+		},
+	}
+	source["returned"] = map[string]interface{}{
+		"count": float64(3),
+		"items": []interface{}{
+			map[string]interface{}{"type": "secret", "namespace": "acme", "name": "db-creds", "uid": "uid-a"},
+			map[string]interface{}{"type": "secret", "namespace": "acme", "name": "api-key", "uid": "uid-b"},
+		},
+	}
+
+	record, err := ParseAuditRecord(Hit{ID: "doc-1", Source: source})
+	if err != nil {
+		t.Fatalf("ParseAuditRecord() error = %v", err)
+	}
+
+	if record.Request == nil {
+		t.Fatal("request = nil, want the stored parameters")
+	}
+	wantParameters := map[string]any{
+		"sinceSeconds": float64(3600),
+		"actor":        map[string]any{"id": []any{"alice"}},
+	}
+	if !reflect.DeepEqual(record.Request.Parameters, wantParameters) {
+		t.Errorf("request.parameters = %v, want %v", record.Request.Parameters, wantParameters)
+	}
+
+	wantReturned := &AuditReturned{
+		Count: 3,
+		Items: []AuditReturnedItem{
+			{Type: "secret", Namespace: "acme", Name: "db-creds", UID: "uid-a"},
+			{Type: "secret", Namespace: "acme", Name: "api-key", UID: "uid-b"},
+		},
+	}
+	if !reflect.DeepEqual(record.Returned, wantReturned) {
+		t.Errorf("returned = %+v, want %+v", record.Returned, wantReturned)
+	}
+}
+
+func TestParseAuditRecord_LeavesAbsentGroupsNil(t *testing.T) {
+	record, err := ParseAuditRecord(Hit{ID: "doc-1", Source: completeAuditSource()})
+	if err != nil {
+		t.Fatalf("ParseAuditRecord() error = %v", err)
+	}
+	if record.Request != nil {
+		t.Errorf("request = %+v, want nil", record.Request)
+	}
+	if record.Returned != nil {
+		t.Errorf("returned = %+v, want nil", record.Returned)
 	}
 }
 

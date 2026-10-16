@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -162,6 +163,118 @@ func TestQueryAuditLogs_ReturnsRecordsAndCollectorInfo(t *testing.T) {
 	if record.Collector == nil || record.Collector.ContainerName == nil ||
 		*record.Collector.ContainerName != "api-server" {
 		t.Errorf("collector = %+v, want container api-server", record.Collector)
+	}
+}
+
+// publishedAuditLine is a 1.1 record as the producer writes it.
+const publishedAuditLine = `{"schema_version":"1.1","event_id":"evt-1","event_time":"2026-09-01T10:00:00Z",` +
+	`"actor":{"type":"user","id":"u1"},"action":"list_secrets","category":"access","result":"success",` +
+	`"producer":"openchoreo-api","surface":"rest","operation_id":"ListSecrets",` +
+	`"resource":{"type":"secret","namespace":"acme"},` +
+	`"request":{"parameters":{"container":"api","sinceSeconds":3600,` +
+	`"actor":{"id":["alice"]},"search_scope":{"namespace":"acme"}}},` +
+	`"returned":{"count":2,"items":[` +
+	`{"type":"secret","namespace":"acme","name":"db-creds","uid":"uid-a"},` +
+	`{"type":"secret","namespace":"acme","name":"api-key","uid":"uid-b"}]}}`
+
+func auditHitFromLine(t *testing.T, line string) map[string]interface{} {
+	t.Helper()
+	var source map[string]interface{}
+	if err := json.Unmarshal([]byte(line), &source); err != nil {
+		t.Fatalf("parse line: %v", err)
+	}
+	return map[string]interface{}{"_id": "doc-1", "_score": 1.0, "_source": source}
+}
+
+func queryOneAuditRecord(t *testing.T, hit map[string]interface{}) gen.AuditLogRecord {
+	t.Helper()
+	server := newAuditServer(t, auditSearchPayload([]map[string]interface{}{hit}, 1))
+	defer server.Close()
+
+	resp, err := auditHandler(t, server.URL).QueryAuditLogs(
+		context.Background(), gen.QueryAuditLogsRequestObject{Body: auditRequestBody()})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	success, ok := resp.(gen.QueryAuditLogs200JSONResponse)
+	if !ok {
+		t.Fatalf("expected 200 response, got %T", resp)
+	}
+	if len(success.Records) != 1 {
+		t.Fatalf("got %d records, want 1", len(success.Records))
+	}
+	return success.Records[0]
+}
+
+func TestQueryAuditLogs_ReturnsRequestAndReturnedAsPublished(t *testing.T) {
+	record := queryOneAuditRecord(t, auditHitFromLine(t, publishedAuditLine))
+
+	served, err := json.Marshal(record)
+	if err != nil {
+		t.Fatalf("marshal record: %v", err)
+	}
+	var got, want map[string]interface{}
+	if err := json.Unmarshal(served, &got); err != nil {
+		t.Fatalf("parse served record: %v", err)
+	}
+	if err := json.Unmarshal([]byte(publishedAuditLine), &want); err != nil {
+		t.Fatalf("parse published line: %v", err)
+	}
+
+	for _, group := range []string{"request", "returned"} {
+		if !reflect.DeepEqual(got[group], want[group]) {
+			t.Errorf("%s = %v, want %v", group, got[group], want[group])
+		}
+	}
+	if got["schema_version"] != "1.1" {
+		t.Errorf("schema_version = %v, want it served as stored", got["schema_version"])
+	}
+}
+
+func TestQueryAuditLogs_LeavesAbsentGroupsOutOfA10Record(t *testing.T) {
+	record := queryOneAuditRecord(t, auditHit("evt-1", "2026-09-01T10:00:00Z"))
+
+	if record.Request != nil {
+		t.Errorf("request = %+v, want nil", record.Request)
+	}
+	if record.Returned != nil {
+		t.Errorf("returned = %+v, want nil", record.Returned)
+	}
+}
+
+func TestQueryAuditLogs_KeepsAReturnedCountOfZero(t *testing.T) {
+	hit := auditHit("evt-1", "2026-09-01T10:00:00Z")
+	hit["_source"].(map[string]interface{})["returned"] = map[string]interface{}{"count": 0}
+
+	record := queryOneAuditRecord(t, hit)
+
+	if record.Returned == nil {
+		t.Fatal("returned = nil, want a count of 0")
+	}
+	if record.Returned.Count != 0 || record.Returned.Items != nil {
+		t.Errorf("returned = %+v, want count 0 and no items", record.Returned)
+	}
+}
+
+func TestQueryAuditLogs_FiltersOnReturnedItemNames(t *testing.T) {
+	server := newAuditServer(t, auditSearchPayload(nil, 0))
+	defer server.Close()
+
+	body := auditRequestBody()
+	body.Returned = &gen.AuditLogsReturnedFilter{
+		Items: &gen.AuditLogsReturnedItemsFilter{Name: &[]string{"db-creds"}},
+	}
+	if _, err := auditHandler(t, server.URL).QueryAuditLogs(
+		context.Background(), gen.QueryAuditLogsRequestObject{Body: body}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	sent, err := json.Marshal(server.searchBody)
+	if err != nil {
+		t.Fatalf("marshal captured body: %v", err)
+	}
+	if !strings.Contains(string(sent), `{"terms":{"returned.items.name":["db-creds"]}}`) {
+		t.Errorf("search body = %s, want a terms filter on returned.items.name", sent)
 	}
 }
 

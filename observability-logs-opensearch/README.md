@@ -314,6 +314,12 @@ dynamic mappings and answers nothing, and applying the template afterwards does 
 repair indices already written. Until audit is enabled they are metadata against an index
 pattern that matches nothing.
 
+The same holds for fields added to the template later. The `returned.items.name` filter
+matches only records in daily indices created after the template that maps `returned`
+was applied. Earlier indices still return those records, but the filter does not find
+them until the field is added with `PUT <index>/_mapping` and the index is re-indexed in
+place with `_update_by_query`.
+
 #### Shipping audit records to a separate OpenSearch
 
 By default audit records go to the same OpenSearch as the container logs. To keep the audit trail elsewhere, for example one OpenSearch that several observability planes report their audit records to, set `auditLogs.output.host`:
