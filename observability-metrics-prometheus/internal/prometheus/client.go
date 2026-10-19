@@ -75,7 +75,7 @@ func (c *Client) HealthCheck(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	_, _, err := c.api.Query(ctx, "up", time.Now())
+	_, _, _, err := c.api.Query(ctx, "up", time.Now())
 	if err != nil {
 		return fmt.Errorf("prometheus health check failed: %w", err)
 	}
@@ -96,7 +96,7 @@ func (c *Client) QueryRangeTimeSeries(ctx context.Context, query string, start, 
 		Step:  step,
 	}
 
-	result, warnings, err := c.api.QueryRange(ctx, query, r)
+	result, warnings, _, err := c.api.QueryRange(ctx, query, r)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute range query: %w", err)
 	}
@@ -118,7 +118,7 @@ func (c *Client) QueryRangeTimeSeries(ctx context.Context, query string, start, 
 func (c *Client) QueryInstant(ctx context.Context, query string, t time.Time) (*TimeSeriesResponse, error) {
 	c.logger.Debug("Executing Prometheus instant query", "time", t)
 
-	result, warnings, err := c.api.Query(ctx, query, t)
+	result, warnings, _, err := c.api.Query(ctx, query, t)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute instant query: %w", err)
 	}
