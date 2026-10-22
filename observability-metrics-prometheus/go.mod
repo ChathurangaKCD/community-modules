@@ -1,6 +1,6 @@
 module github.com/openchoreo/community-modules/observability-metrics-prometheus
 
-go 1.26.3
+go 1.27.3
 
 require (
 	github.com/getkin/kin-openapi v0.149.0
