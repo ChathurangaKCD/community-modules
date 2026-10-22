@@ -7,7 +7,7 @@ updates:
       - "/observability-events-otel-collector/k8seventenrichprocessor"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       k8s.io:
         patterns:
