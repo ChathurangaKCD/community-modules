@@ -17,7 +17,7 @@ maintainers:
 home: https://github.com/openchoreo/community-modules
 dependencies:
   - name: fluent-bit
-    version: "0.56.0"
+    version: "0.58.3"
     repository: https://fluent.github.io/helm-charts
     condition: fluent-bit.enabled
   - name: openobserve-standalone

@@ -76,7 +76,7 @@ helm upgrade --install observability-logs-openobserve \
   oci://cr.openchoreo.dev/openchoreo/helm-charts/observability-logs-openobserve \
   --namespace openchoreo-observability-plane \
   --version 0.0.0-latest-dev \
-  --reuse-values \
+  --reset-then-reuse-values \
   --set openobserve-standalone.enabled=false \
   --set openobserve.enabled=true
 ```
@@ -96,7 +96,7 @@ helm upgrade observability-logs-openobserve \
   oci://cr.openchoreo.dev/openchoreo/helm-charts/observability-logs-openobserve \
   --namespace openchoreo-observability-plane \
   --version 0.0.0-latest-dev \
-  --reuse-values \
+  --reset-then-reuse-values \
   --set fluent-bit.enabled=true \
   --set fluentBitCustomizations.clusterInstance=<cluster-name>
 ```
@@ -177,7 +177,7 @@ helm upgrade observability-logs-openobserve \
   oci://cr.openchoreo.dev/openchoreo/helm-charts/observability-logs-openobserve \
   --namespace openchoreo-observability-plane \
   --version 0.0.0-latest-dev \
-  --reuse-values \
+  --reset-then-reuse-values \
   --set fluent-bit.enabled=true \
   --set fluentBitCustomizations.clusterInstance=<cluster-name> \
   --set auditLogs.enabled=true
@@ -197,7 +197,7 @@ helm upgrade observability-logs-openobserve \
   oci://cr.openchoreo.dev/openchoreo/helm-charts/observability-logs-openobserve \
   --namespace openchoreo-observability-plane \
   --version 0.0.0-latest-dev \
-  --reuse-values \
+  --reset-then-reuse-values \
   --set fluent-bit.enabled=true \
   --set fluentBitCustomizations.clusterInstance=<op-cluster-name> \
   --set auditLogs.enabled=true
@@ -321,6 +321,6 @@ Bundled upstream Helm charts:
 
 | OpenChoreo Version | Module Version |
 | ------------------ | -------------- |
-| v1.3.0 and later   | 0.7.x          |
+| v1.3.0 and later   | 0.7.x, 0.8.x  |
 | v1.2.x             | 0.6.x          |
-| v1.0.x - v1.1.x    | 0.4.x - 0.5.x  |
+| v1.0.x - v1.1.x    | 0.4.x, 0.5.x  |

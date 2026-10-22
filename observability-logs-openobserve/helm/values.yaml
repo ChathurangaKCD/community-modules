@@ -45,6 +45,10 @@ auditLogs:
 fluent-bit:
   enabled: true
 
+  # Pinned ahead of the chart default (0.58.3 chart ships 5.1.3).
+  image:
+    tag: "5.1.5"
+
   existingConfigMap: "fluent-bit"
 
   dnsPolicy: ClusterFirstWithHostNet

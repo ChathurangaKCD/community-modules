@@ -1,12 +1,12 @@
 dependencies:
 - name: fluent-bit
   repository: https://fluent.github.io/helm-charts
-  version: 0.56.0
+  version: 0.58.3
 - name: openobserve-standalone
   repository: https://charts.openobserve.ai
   version: 0.92.2
 - name: openobserve
   repository: https://charts.openobserve.ai
   version: 0.92.2
-digest: sha256:140fe4e5119bc733f9bffdc6a124387c813ae1c835390690422b6d66b6267ca7
-generated: "2026-09-01T10:21:04.066373654Z"
+digest: sha256:e9dbf6312eaed113300c3527935edad8a0d672b99b1909b2312d50eacca67378
+generated: "2026-10-22T16:25:02.23446+05:30"
