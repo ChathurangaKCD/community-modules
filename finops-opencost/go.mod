@@ -1,6 +1,6 @@
 module github.com/openchoreo/community-modules/finops-opencost
 
-go 1.26.4
+go 1.27.3
 
 require (
 	github.com/getkin/kin-openapi v0.149.0
