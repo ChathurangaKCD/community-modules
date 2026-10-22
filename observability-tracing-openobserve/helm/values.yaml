@@ -69,6 +69,8 @@ opentelemetry-collector:
 
   image:
     repository: otel/opentelemetry-collector-contrib
+    # Pinned ahead of the chart default (0.176.1 ships 0.162.0)
+    tag: "0.163.2"
 
   mode: deployment
 

@@ -76,7 +76,7 @@ helm upgrade --install observability-tracing-openobserve \
   oci://cr.openchoreo.dev/openchoreo/helm-charts/observability-tracing-openobserve \
   --namespace openchoreo-observability-plane \
   --version 0.0.0-latest-dev \
-  --reuse-values \
+  --reset-then-reuse-values \
   --set openobserve-standalone.enabled=false \
   --set openobserve.enabled=true
 ```
