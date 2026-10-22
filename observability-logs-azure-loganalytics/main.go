@@ -20,6 +20,10 @@ import (
 	"github.com/openchoreo/community-modules/observability-logs-azure-loganalytics/internal/observer"
 )
 
+// auditProbeTimeout keeps the nonfatal probe from pushing startup past the
+// liveness probe's patience.
+const auditProbeTimeout = 10 * time.Second
+
 func main() {
 	cfg, err := app.LoadConfig()
 	if err != nil {
@@ -50,10 +54,12 @@ func main() {
 	}
 
 	laClient, err := loganalytics.NewClient(cred, loganalytics.Config{
-		WorkspaceID:     cfg.WorkspaceID,
-		QueryTimeout:    cfg.QueryTimeout,
-		EventsTable:     cfg.EventsTable,
-		EventsScopeName: cfg.EventsScopeName,
+		WorkspaceID:      cfg.WorkspaceID,
+		QueryTimeout:     cfg.QueryTimeout,
+		EventsTable:      cfg.EventsTable,
+		EventsScopeName:  cfg.EventsScopeName,
+		AuditWorkspaceID: cfg.AuditWorkspaceID,
+		AuditTable:       cfg.AuditTable,
 	}, logger.With("component", "loganalytics"))
 	if err != nil {
 		logger.Error("failed to construct Log Analytics client", slog.Any("error", err))
@@ -101,6 +107,30 @@ func main() {
 		os.Exit(1)
 	}
 	logger.Info("Action Group reachable", slog.String("actionGroupId", cfg.ActionGroupID))
+
+	// Must stay after the fatal checks: bootstrapCtx's deadline is wall-clock, so
+	// a nonfatal probe placed earlier can spend the budget VerifyActionGroup needs.
+	if !laClient.AuditEnabled() {
+		logger.Info("audit logs are not configured; audit queries will answer 501",
+			slog.String("hint", "set AUDIT_WORKSPACE_ID to enable them"))
+	} else {
+		probeCtx, probeCancel := context.WithTimeout(context.Background(), auditProbeTimeout)
+		auditErr := laClient.ProbeAuditTable(probeCtx)
+		probeCancel()
+
+		if auditErr != nil {
+			logger.Warn("audit table probe failed",
+				slog.String("workspaceId", cfg.AuditWorkspaceID),
+				slog.String("table", laClient.AuditTable()),
+				slog.Any("error", auditErr),
+			)
+		} else {
+			logger.Info("audit table reachable",
+				slog.String("workspaceId", cfg.AuditWorkspaceID),
+				slog.String("table", laClient.AuditTable()),
+			)
+		}
+	}
 
 	obsClient := observer.NewClient(cfg.ObserverURL)
 	handler := app.NewLogsHandler(laClient, alertClient, obsClient, logger.With("component", "handler"))
