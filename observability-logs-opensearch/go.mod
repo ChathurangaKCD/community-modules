@@ -1,6 +1,6 @@
 module github.com/openchoreo/community-modules/observability-logs-opensearch
 
-go 1.26.8
+go 1.27.3
 
 require (
 	github.com/getkin/kin-openapi v0.151.0
