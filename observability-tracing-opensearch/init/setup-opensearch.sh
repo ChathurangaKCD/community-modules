@@ -99,6 +99,15 @@ otelTracesIndexTemplate='
             "openchoreo.dev/project-uid": {
               "type": "keyword"
             },
+            "openchoreo.dev/release-line": {
+              "type": "keyword"
+            },
+            "openchoreo.dev/release-line-uid": {
+              "type": "keyword"
+            },
+            "openchoreo.dev/release-line-component-uid": {
+              "type": "keyword"
+            },
             "service.name": {
               "type": "keyword"
             }

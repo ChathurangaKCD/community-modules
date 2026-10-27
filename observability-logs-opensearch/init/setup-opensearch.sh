@@ -190,6 +190,15 @@ k8sEventsIndexTemplate='
                             "dev/environment-uid": {
                               "type": "keyword"
                             },
+                            "dev/release-line": {
+                              "type": "keyword"
+                            },
+                            "dev/release-line-uid": {
+                              "type": "keyword"
+                            },
+                            "dev/release-line-component-uid": {
+                              "type": "keyword"
+                            },
                             "dev/namespace": {
                               "type": "keyword"
                             }
@@ -349,6 +358,9 @@ auditLogsIndexTemplate='
               "type": "keyword"
             },
             "component": {
+              "type": "keyword"
+            },
+            "release_line": {
               "type": "keyword"
             },
             "resource": {
