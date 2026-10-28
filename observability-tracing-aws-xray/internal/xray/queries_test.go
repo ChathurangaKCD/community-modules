@@ -175,7 +175,7 @@ func TestSegmentToSpanDetail_AttributeMaps(t *testing.T) {
 		},
 	}
 
-	detail := segmentToSpanDetail(&seg, "seg1", true)
+	detail := segmentToSpanDetail(&seg, "seg1", segmentResource{}, true)
 
 	if detail.Status != "error" {
 		t.Errorf("expected status error, got %q", detail.Status)

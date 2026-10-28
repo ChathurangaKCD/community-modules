@@ -6,6 +6,7 @@ package xray
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -276,13 +277,15 @@ func TestGetSpans_WithSegments(t *testing.T) {
 		"trace_id": "1-5759e988-bd862e3fe1be46a994272793",
 		"start_time": 1465510988.0,
 		"end_time": 1465510988.5,
+		"annotations": {"openchoreo.dev_namespace": "test"},
 		"subsegments": [
 			{
 				"id": "sub1",
 				"name": "DynamoDB",
 				"start_time": 1465510988.1,
 				"end_time": 1465510988.3,
-				"namespace": "aws"
+				"namespace": "aws",
+				"annotations": {"openchoreo.dev_namespace": "test"}
 			}
 		]
 	}`
@@ -306,6 +309,7 @@ func TestGetSpans_WithSegments(t *testing.T) {
 	result, err := client.GetSpans(context.Background(), TracesQueryParams{
 		TraceID: "5759e988bd862e3fe1be46a994272793",
 		Limit:   100,
+		Scope:   Scope{Namespace: "test"},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -330,7 +334,8 @@ func TestGetSpans_WithScientificNotationTimestamps(t *testing.T) {
 		"name": "frontend",
 		"trace_id": "1-6a19017d-ca1791cb19542f1806dc624c",
 		"start_time": 1.778478205e+09,
-		"end_time": 1.778478205001e+09
+		"end_time": 1.778478205001e+09,
+		"annotations": {"openchoreo.dev_namespace": "test"}
 	}`
 
 	mock := &mockXRayClient{
@@ -352,6 +357,7 @@ func TestGetSpans_WithScientificNotationTimestamps(t *testing.T) {
 	result, err := client.GetSpans(context.Background(), TracesQueryParams{
 		TraceID: "6a19017dca1791cb19542f1806dc624c",
 		Limit:   100,
+		Scope:   Scope{Namespace: "test"},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -375,11 +381,13 @@ func TestGetSpans_StatusMessage(t *testing.T) {
 		"trace_id": "1-6a19017d-ca1791cb19542f1806dc624c",
 		"start_time": 1.778478205e+09,
 		"end_time": 1.778478205001e+09,
+		"annotations": {"openchoreo.dev_namespace": "test"},
 		"subsegments": [
 			{
 				"id": "sub1",
 				"name": "example.com",
 				"namespace": "remote",
+				"annotations": {"openchoreo.dev_namespace": "test"},
 				"start_time": 1.778478205e+09,
 				"end_time": 1.778478205001e+09,
 				"error": true,
@@ -407,6 +415,7 @@ func TestGetSpans_StatusMessage(t *testing.T) {
 	result, err := client.GetSpans(context.Background(), TracesQueryParams{
 		TraceID: "6a19017dca1791cb19542f1806dc624c",
 		Limit:   100,
+		Scope:   Scope{Namespace: "test"},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -440,7 +449,7 @@ func TestGetSpanDetail_Found(t *testing.T) {
 		"trace_id": "1-5759e988-bd862e3fe1be46a994272793",
 		"start_time": 1465510988.0,
 		"end_time": 1465510988.5,
-		"annotations": {"key1": "value1"},
+		"annotations": {"key1": "value1", "openchoreo.dev_namespace": "test"},
 		"http": {"request": {"method": "GET"}},
 		"subsegments": [
 			{
@@ -448,7 +457,8 @@ func TestGetSpanDetail_Found(t *testing.T) {
 				"name": "DynamoDB",
 				"start_time": 1465510988.1,
 				"end_time": 1465510988.3,
-				"namespace": "aws"
+				"namespace": "aws",
+				"annotations": {"openchoreo.dev_namespace": "test"}
 			}
 		]
 	}`
@@ -510,8 +520,8 @@ func TestGetSpanDetail_NotFound(t *testing.T) {
 		TraceID: "5759e988bd862e3fe1be46a994272793",
 		SpanID:  "nonexistent",
 	})
-	if err == nil {
-		t.Fatal("expected error for non-existent span")
+	if !errors.Is(err, ErrSpanNotFound) {
+		t.Fatalf("expected ErrSpanNotFound for non-existent span, got %v", err)
 	}
 }
 

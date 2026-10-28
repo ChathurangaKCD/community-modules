@@ -5,7 +5,10 @@ package app
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"log/slog"
+	"net/http"
 	"strings"
 	"time"
 
@@ -57,10 +60,9 @@ func (h *TracingHandler) QueryTraces(ctx context.Context, request gen.QueryTrace
 	result, err := h.client.GetTraces(ctx, params)
 	if err != nil {
 		h.logger.Error("Failed to query traces", slog.Any("error", err))
-		detail := err.Error()
 		return gen.QueryTraces500JSONResponse{
 			Title:  ptr(gen.InternalServerError),
-			Detail: &detail,
+			Detail: ptr("failed to query traces"),
 		}, nil
 	}
 
@@ -93,10 +95,9 @@ func (h *TracingHandler) QuerySpansForTrace(ctx context.Context, request gen.Que
 	result, err := h.client.GetSpans(ctx, params)
 	if err != nil {
 		h.logger.Error("Failed to query spans", slog.Any("error", err))
-		detail := err.Error()
 		return gen.QuerySpansForTrace500JSONResponse{
 			Title:  ptr(gen.InternalServerError),
-			Detail: &detail,
+			Detail: ptr("failed to query spans"),
 		}, nil
 	}
 
@@ -110,16 +111,33 @@ func (h *TracingHandler) GetSpanDetailsForTrace(ctx context.Context, request gen
 	}
 
 	result, err := h.client.GetSpanDetail(ctx, params)
+	if errors.Is(err, xray.ErrSpanNotFound) {
+		return spanDetailsNotFoundResponse{}, nil
+	}
 	if err != nil {
 		h.logger.Error("Failed to query span detail", slog.Any("error", err))
-		detail := err.Error()
 		return gen.GetSpanDetailsForTrace500JSONResponse{
 			Title:  ptr(gen.InternalServerError),
-			Detail: &detail,
+			Detail: ptr("failed to query span details"),
 		}, nil
 	}
 
 	return gen.GetSpanDetailsForTrace200JSONResponse(toSpanDetailsResponse(&result.Span)), nil
+}
+
+// spanDetailsNotFoundResponse renders a 404 for a span details lookup that
+// found no OpenChoreo span. The generated server has no 404 type for this
+// operation, so this implements the response interface directly. The body is
+// the same whether the trace, the span or its OpenChoreo identity was missing,
+// and echoes no identifiers.
+type spanDetailsNotFoundResponse struct{}
+
+func (spanDetailsNotFoundResponse) VisitGetSpanDetailsForTraceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNotFound)
+	return json.NewEncoder(w).Encode(gen.ErrorResponse{
+		Detail: ptr("span not found"),
+	})
 }
 
 func toTracesQueryParams(req *gen.TracesQueryRequest) xray.TracesQueryParams {

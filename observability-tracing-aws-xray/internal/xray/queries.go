@@ -6,6 +6,7 @@ package xray
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -150,7 +151,11 @@ func (c *Client) GetTraces(ctx context.Context, params TracesQueryParams) (*Trac
 	}, nil
 }
 
-// GetSpans queries X-Ray for all spans (segments + subsegments) of a given trace.
+// GetSpans queries X-Ray for the spans (segments + subsegments) of a given trace
+// that match the search scope and the time range. BatchGetTraces accepts only
+// trace IDs and no filter expression, so every span is checked here, before
+// the limit and the total are applied. A trace with no matching span returns an
+// empty list, the same as a trace that does not exist.
 func (c *Client) GetSpans(ctx context.Context, params TracesQueryParams) (*SpansResult, error) {
 	startedAt := time.Now()
 
@@ -172,7 +177,7 @@ func (c *Client) GetSpans(ctx context.Context, params TracesQueryParams) (*Spans
 		}, nil
 	}
 
-	spans := flattenTrace(output.Traces[0], params.IncludeAttributes)
+	spans := flattenTrace(output.Traces[0], params, params.IncludeAttributes)
 
 	limit := params.Limit
 	if limit <= 0 {
@@ -193,7 +198,15 @@ func (c *Client) GetSpans(ctx context.Context, params TracesQueryParams) (*Spans
 	}, nil
 }
 
-// GetSpanDetail queries X-Ray for a specific span within a trace.
+// ErrSpanNotFound is returned by GetSpanDetail when the trace or the span does
+// not exist, or when the span carries no OpenChoreo identity.
+var ErrSpanNotFound = errors.New("span not found")
+
+// GetSpanDetail queries X-Ray for a specific span within a trace. The request
+// carries no search scope, so the caller authorizes on the OpenChoreo resource
+// attributes of the returned span. A span without an openchoreo.dev/namespace
+// resource attribute is reported as ErrSpanNotFound, so only OpenChoreo spans
+// are served from the X-Ray account.
 func (c *Client) GetSpanDetail(ctx context.Context, params TracesQueryParams) (*SpanDetailResult, error) {
 	xrayTraceID := toXRayTraceID(params.TraceID)
 
@@ -206,12 +219,15 @@ func (c *Client) GetSpanDetail(ctx context.Context, params TracesQueryParams) (*
 	}
 
 	if len(output.Traces) == 0 {
-		return nil, fmt.Errorf("trace not found: traceId=%s", params.TraceID)
+		return nil, ErrSpanNotFound
 	}
 
-	detail, err := findSpanDetail(output.Traces[0], params.SpanID)
-	if err != nil {
-		return nil, err
+	detail := findSpanDetail(output.Traces[0], params.SpanID)
+	if detail == nil {
+		return nil, ErrSpanNotFound
+	}
+	if ns, _ := detail.ResourceAttributes[resourceNamespace].(string); ns == "" {
+		return nil, ErrSpanNotFound
 	}
 
 	return &SpanDetailResult{Span: *detail}, nil
@@ -340,26 +356,194 @@ func segmentHasErrors(seg *xraySegment) bool {
 	return false
 }
 
+// OpenChoreo span attributes indexed as X-Ray annotations by the awsxray
+// exporter's indexed_attributes. X-Ray annotation keys preserve dots and
+// convert slashes/hyphens to underscores, so these are the keys that appear
+// both in filter expressions and on a segment document's "annotations" object.
+const (
+	annotationNamespace      = "openchoreo.dev_namespace"
+	annotationProjectUID     = "openchoreo.dev_project_uid"
+	annotationComponentUID   = "openchoreo.dev_component_uid"
+	annotationEnvironmentUID = "openchoreo.dev_environment_uid"
+)
+
+// OpenChoreo resource attribute keys, as the collector's k8sattributes
+// processor sets them from the workload pod labels.
+const (
+	resourceNamespace      = "openchoreo.dev/namespace"
+	resourceProjectUID     = "openchoreo.dev/project-uid"
+	resourceComponentUID   = "openchoreo.dev/component-uid"
+	resourceEnvironmentUID = "openchoreo.dev/environment-uid"
+)
+
+// identityKeys pairs each indexed annotation with the resource attribute the
+// collector copied it from. Together they are the OpenChoreo identity of a span.
+var identityKeys = []struct {
+	annotation string
+	resource   string
+}{
+	{annotationNamespace, resourceNamespace},
+	{annotationProjectUID, resourceProjectUID},
+	{annotationComponentUID, resourceComponentUID},
+	{annotationEnvironmentUID, resourceEnvironmentUID},
+}
+
+// otelResourceMetadataPrefix is the prefix the awsxray exporter gives the
+// resource attributes it stores under a segment's metadata.default.
+const otelResourceMetadataPrefix = "otel.resource."
+
 // buildFilterExpression constructs an X-Ray filter expression from the search scope.
-// X-Ray annotation keys preserve dots and convert slashes/hyphens to underscores.
 // Keys containing dots must use annotation[key] filter syntax.
 func buildFilterExpression(scope Scope) string {
 	var parts []string
 
 	if scope.Namespace != "" {
-		parts = append(parts, fmt.Sprintf("annotation[openchoreo.dev_namespace] = %q", scope.Namespace))
+		parts = append(parts, fmt.Sprintf("annotation[%s] = %q", annotationNamespace, scope.Namespace))
 	}
 	if scope.ProjectID != "" {
-		parts = append(parts, fmt.Sprintf("annotation[openchoreo.dev_project_uid] = %q", scope.ProjectID))
+		parts = append(parts, fmt.Sprintf("annotation[%s] = %q", annotationProjectUID, scope.ProjectID))
 	}
 	if scope.ComponentID != "" {
-		parts = append(parts, fmt.Sprintf("annotation[openchoreo.dev_component_uid] = %q", scope.ComponentID))
+		parts = append(parts, fmt.Sprintf("annotation[%s] = %q", annotationComponentUID, scope.ComponentID))
 	}
 	if scope.EnvironmentID != "" {
-		parts = append(parts, fmt.Sprintf("annotation[openchoreo.dev_environment_uid] = %q", scope.EnvironmentID))
+		parts = append(parts, fmt.Sprintf("annotation[%s] = %q", annotationEnvironmentUID, scope.EnvironmentID))
 	}
 
 	return strings.Join(parts, " AND ")
+}
+
+// matchesScope reports whether a span's own annotations satisfy the search
+// scope. The namespace is always required, so an unscoped request matches
+// nothing. The project, component and environment UIDs constrain the match
+// only when they are set on the scope.
+func matchesScope(annotations map[string]interface{}, scope Scope) bool {
+	if scope.Namespace == "" {
+		return false
+	}
+	return annotationEquals(annotations, annotationNamespace, scope.Namespace) &&
+		annotationEquals(annotations, annotationProjectUID, scope.ProjectID) &&
+		annotationEquals(annotations, annotationComponentUID, scope.ComponentID) &&
+		annotationEquals(annotations, annotationEnvironmentUID, scope.EnvironmentID)
+}
+
+// annotationEquals reports whether the annotation matches want. An empty want
+// is treated as "not scoped" and always matches. A missing or non-string
+// annotation value never matches a scoped field.
+func annotationEquals(annotations map[string]interface{}, key, want string) bool {
+	if want == "" {
+		return true
+	}
+	got, ok := annotations[key].(string)
+	return ok && got == want
+}
+
+// spanIdentity reverse-maps a span's OpenChoreo annotations to resource
+// attribute keys (openchoreo.dev_namespace to openchoreo.dev/namespace,
+// openchoreo.dev_project_uid to openchoreo.dev/project-uid, and so on).
+// Missing, empty and non-string values are left out.
+func spanIdentity(annotations map[string]interface{}) map[string]string {
+	identity := make(map[string]string, len(identityKeys))
+	for _, k := range identityKeys {
+		if v, ok := annotations[k.annotation].(string); ok && v != "" {
+			identity[k.resource] = v
+		}
+	}
+	return identity
+}
+
+// completeIdentity reports whether an identity carries the namespace and all
+// three UIDs. Only a complete identity pins a span to a single component in a
+// single environment, so only a complete identity can have names attributed to it.
+func completeIdentity(id map[string]string) bool {
+	for _, k := range identityKeys {
+		if id[k.resource] == "" {
+			return false
+		}
+	}
+	return true
+}
+
+// sameIdentity reports whether two complete identities agree on the namespace
+// and all three UIDs. An incomplete identity never matches.
+func sameIdentity(a, b map[string]string) bool {
+	if !completeIdentity(a) || !completeIdentity(b) {
+		return false
+	}
+	for _, k := range identityKeys {
+		if a[k.resource] != b[k.resource] {
+			return false
+		}
+	}
+	return true
+}
+
+// segmentResource is the OTel resource of a top-level segment document. The
+// awsxray exporter stores resource attributes only on segments, never on
+// subsegments, so the subsegments nested in a segment can take their resource
+// names from here, but only when they share the segment's identity.
+type segmentResource struct {
+	// identity is the segment's own OpenChoreo identity from its annotations,
+	// the same values the span list filters on.
+	identity map[string]string
+	// attrs holds the resource attributes lifted from the segment metadata
+	// with bare keys, or nil when they cannot be attributed to identity.
+	attrs map[string]interface{}
+}
+
+// newSegmentResource lifts the resource attributes the exporter wrote into
+// metadata.default."otel.resource.<key>" of a top-level segment. The lifted
+// attributes are kept only when the segment's annotations carry a complete
+// identity and the lifted metadata carries the same complete identity, so
+// resource names are never attached to an identity they were not exported with.
+func newSegmentResource(seg *xraySegment) segmentResource {
+	res := segmentResource{identity: spanIdentity(seg.Annotations)}
+	if !completeIdentity(res.identity) {
+		return res
+	}
+
+	defaults, _ := seg.Metadata["default"].(map[string]interface{})
+	lifted := make(map[string]interface{})
+	for k, v := range defaults {
+		if key, ok := strings.CutPrefix(k, otelResourceMetadataPrefix); ok && key != "" {
+			lifted[key] = v
+		}
+	}
+
+	for _, k := range identityKeys {
+		if v, ok := lifted[k.resource].(string); !ok || v != res.identity[k.resource] {
+			return res
+		}
+	}
+
+	res.attrs = lifted
+	return res
+}
+
+// spanResourceAttributes builds the resource attributes of a span. Every span
+// carries its own OpenChoreo identity from its annotations. The enclosing
+// segment's lifted resource (the OpenChoreo names, k8s.* and service.*
+// attributes) is added only when the span's complete identity equals the
+// segment's: a subsegment can belong to another service than the segment X-Ray
+// nests it under, and must not inherit that service's names. Names that cannot
+// be established stay absent, which fails closed for scoped callers.
+func spanResourceAttributes(seg *xraySegment, enclosing segmentResource) map[string]interface{} {
+	attrs := make(map[string]interface{})
+
+	identity := spanIdentity(seg.Annotations)
+	if enclosing.attrs != nil && sameIdentity(identity, enclosing.identity) {
+		for k, v := range enclosing.attrs {
+			attrs[k] = v
+		}
+	}
+	for k, v := range buildResourceAttributes(seg) {
+		attrs[k] = v
+	}
+	for k, v := range identity {
+		attrs[k] = v
+	}
+
+	return attrs
 }
 
 // toXRayTraceID converts a plain OTLP trace ID (32 hex chars) to the X-Ray format
@@ -486,9 +670,12 @@ type xrayCause struct {
 	} `json:"exceptions"`
 }
 
-// flattenTrace extracts all segments and subsegments from an X-Ray trace into a flat list of SpanEntry.
-func flattenTrace(trace xraytypes.Trace, includeAttributes bool) []SpanEntry {
-	var spans []SpanEntry
+// flattenTrace extracts the segments and subsegments of an X-Ray trace that
+// match the scope and time range of params into a flat list of SpanEntry. Each
+// span is judged on its own annotations and timestamps, independent of
+// includeAttributes and of the segment it is nested in.
+func flattenTrace(trace xraytypes.Trace, params TracesQueryParams, includeAttributes bool) []SpanEntry {
+	spans := []SpanEntry{}
 
 	traceID := ""
 	if trace.Id != nil {
@@ -505,15 +692,48 @@ func flattenTrace(trace xraytypes.Trace, includeAttributes bool) []SpanEntry {
 			continue
 		}
 
-		flattenSegment(&seg, "", traceID, includeAttributes, false, &spans)
+		flattenSegment(&seg, "", traceID, params, includeAttributes, newSegmentResource(&seg), false, &spans)
 	}
 
 	return spans
 }
 
-// flattenSegment recursively flattens a segment and its subsegments.
+// flattenSegment recursively flattens a segment and its subsegments, keeping
+// only the spans that match the scope and time range of params. The
+// subsegments of a span that does not match are still visited, since each is
+// judged on its own annotations and timestamps.
+// enclosing is the resource of the top-level segment document the span is in.
 // isSubsegment is false only for the top-level segment documents of a trace.
-func flattenSegment(seg *xraySegment, parentID string, traceID string, includeAttributes bool, isSubsegment bool, spans *[]SpanEntry) {
+func flattenSegment(seg *xraySegment, parentID string, traceID string, params TracesQueryParams, includeAttributes bool, enclosing segmentResource, isSubsegment bool, spans *[]SpanEntry) {
+	if matchesScope(seg.Annotations, params.Scope) && withinTimeRange(seg, params.StartTime, params.EndTime) {
+		*spans = append(*spans, segmentToSpanEntry(seg, parentID, includeAttributes, enclosing, isSubsegment))
+	}
+
+	for i := range seg.Subsegments {
+		flattenSegment(&seg.Subsegments[i], seg.ID, traceID, params, includeAttributes, enclosing, true, spans)
+	}
+}
+
+// withinTimeRange reports whether a span starts at or after start and ends at
+// or before end, the same bounds the OpenSearch adapter applies to span
+// documents. A zero bound is treated as unbounded. An in-progress segment or
+// subsegment has no end_time, so it cannot be shown to end before an upper
+// bound and is excluded whenever one is set.
+func withinTimeRange(seg *xraySegment, start, end time.Time) bool {
+	if !start.IsZero() && jsonNumberToNanos(seg.StartTime) < start.UnixNano() {
+		return false
+	}
+	if !end.IsZero() {
+		endNs := jsonNumberToNanos(seg.EndTime)
+		if endNs == 0 || endNs > end.UnixNano() {
+			return false
+		}
+	}
+	return true
+}
+
+// segmentToSpanEntry converts an X-Ray segment or subsegment to a SpanEntry.
+func segmentToSpanEntry(seg *xraySegment, parentID string, includeAttributes bool, enclosing segmentResource, isSubsegment bool) SpanEntry {
 	entry := SpanEntry{
 		SpanID:        seg.ID,
 		SpanName:      seg.Name,
@@ -535,14 +755,10 @@ func flattenSegment(seg *xraySegment, parentID string, traceID string, includeAt
 
 	if includeAttributes {
 		entry.Attributes = buildSpanAttributes(seg)
-		entry.ResourceAttributes = buildResourceAttributes(seg)
+		entry.ResourceAttributes = spanResourceAttributes(seg, enclosing)
 	}
 
-	*spans = append(*spans, entry)
-
-	for i := range seg.Subsegments {
-		flattenSegment(&seg.Subsegments[i], seg.ID, traceID, includeAttributes, true, spans)
-	}
+	return entry
 }
 
 // segmentStatus derives span status from X-Ray segment fields.
@@ -662,8 +878,9 @@ func flattenMap(prefix string, m map[string]interface{}) map[string]interface{} 
 	return result
 }
 
-// findSpanDetail locates a specific span by ID in a trace and returns its full detail.
-func findSpanDetail(trace xraytypes.Trace, spanID string) (*SpanDetail, error) {
+// findSpanDetail locates a specific span by ID in a trace and returns its full
+// detail, or nil when the trace holds no span with that ID.
+func findSpanDetail(trace xraytypes.Trace, spanID string) *SpanDetail {
 	traceID := ""
 	if trace.Id != nil {
 		traceID = fromXRayTraceID(*trace.Id)
@@ -679,28 +896,29 @@ func findSpanDetail(trace xraytypes.Trace, spanID string) (*SpanDetail, error) {
 			continue
 		}
 
-		if detail := findInSegment(&seg, "", traceID, spanID, false); detail != nil {
-			return detail, nil
+		if detail := findInSegment(&seg, "", traceID, spanID, newSegmentResource(&seg), false); detail != nil {
+			return detail
 		}
 	}
 
-	return nil, fmt.Errorf("span not found: traceId=%s, spanId=%s", traceID, spanID)
+	return nil
 }
 
 // findInSegment recursively searches for a span by ID in a segment tree.
+// enclosing is the resource of the top-level segment document being searched.
 // isSubsegment is false only for the top-level segment documents of a trace.
-func findInSegment(seg *xraySegment, parentID string, traceID string, spanID string, isSubsegment bool) *SpanDetail {
+func findInSegment(seg *xraySegment, parentID string, traceID string, spanID string, enclosing segmentResource, isSubsegment bool) *SpanDetail {
 	effectiveParentID := parentID
 	if seg.ParentID != "" {
 		effectiveParentID = seg.ParentID
 	}
 
 	if seg.ID == spanID {
-		return segmentToSpanDetail(seg, effectiveParentID, isSubsegment)
+		return segmentToSpanDetail(seg, effectiveParentID, enclosing, isSubsegment)
 	}
 
 	for i := range seg.Subsegments {
-		if detail := findInSegment(&seg.Subsegments[i], seg.ID, traceID, spanID, true); detail != nil {
+		if detail := findInSegment(&seg.Subsegments[i], seg.ID, traceID, spanID, enclosing, true); detail != nil {
 			return detail
 		}
 	}
@@ -709,7 +927,8 @@ func findInSegment(seg *xraySegment, parentID string, traceID string, spanID str
 }
 
 // segmentToSpanDetail converts an X-Ray segment to a full SpanDetail with all attributes.
-func segmentToSpanDetail(seg *xraySegment, parentID string, isSubsegment bool) *SpanDetail {
+// enclosing is the resource of the top-level segment document the span is in.
+func segmentToSpanDetail(seg *xraySegment, parentID string, enclosing segmentResource, isSubsegment bool) *SpanDetail {
 	startNs := jsonNumberToNanos(seg.StartTime)
 	endNs := jsonNumberToNanos(seg.EndTime)
 
@@ -729,7 +948,7 @@ func segmentToSpanDetail(seg *xraySegment, parentID string, isSubsegment bool) *
 
 	// Span details carry the segment metadata in addition to the resource
 	// attributes returned by the spans-list endpoint.
-	resAttrs := buildResourceAttributes(seg)
+	resAttrs := spanResourceAttributes(seg, enclosing)
 	for k, v := range flattenMap("metadata", seg.Metadata) {
 		resAttrs[k] = v
 	}
