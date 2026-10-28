@@ -178,6 +178,7 @@ Bundled upstream Helm charts:
 
 | OpenChoreo Version | Module Version |
 | ------------------ |----------------|
-| 1.2.0 and later    | 0.6.x, 0.8.x   |
+| 1.4.0 and later    | 0.9.x          |
+| 1.2.x - 1.3.x      | 0.6.x, 0.8.x   |
 | 1.1.x              | 0.4.x          |
 | 1.0.x              | 0.3.x          |

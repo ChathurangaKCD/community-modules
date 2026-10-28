@@ -25,7 +25,7 @@ helm upgrade --install observability-metrics-prometheus \
   oci://cr.openchoreo.dev/openchoreo/helm-charts/observability-metrics-prometheus \
   --create-namespace \
   --namespace openchoreo-observability-plane \
-  --version 0.8.0
+  --version 0.9.0
 ```
 
 ### Multi-cluster topology
@@ -37,7 +37,7 @@ helm upgrade --install observability-metrics-prometheus \
   oci://cr.openchoreo.dev/openchoreo/helm-charts/observability-metrics-prometheus \
   --create-namespace \
   --namespace openchoreo-observability-plane \
-  --version 0.8.0 \
+  --version 0.9.0 \
   --set global.installationMode="multiClusterReceiver" \
   --set-json 'prometheusCustomizations.http.hostnames=["prometheus.observability.example.com"]'
 ```
@@ -51,7 +51,7 @@ helm upgrade --install observability-metrics-prometheus \
   oci://cr.openchoreo.dev/openchoreo/helm-charts/observability-metrics-prometheus \
   --create-namespace \
   --namespace openchoreo-observability-plane \
-  --version 0.8.0 \
+  --version 0.9.0 \
   --set global.installationMode="multiClusterExporter" \
   --set prometheusCustomizations.http.observabilityPlaneUrl=http://prometheus.observability.example.com:9091/api/v1/write \
   --set kube-prometheus-stack.prometheus.enabled=false \
@@ -229,5 +229,6 @@ Bundled upstream Helm charts:
 
 | OpenChoreo Version | Module Version  |
 | ------------------ | --------------- |
-| v1.1.x and later   | 0.6.x and later |
+| v1.4.0 and later   | 0.9.x           |
+| v1.1.x - v1.3.x    | 0.6.x - 0.8.x   |
 | v1.0.x             | 0.3.x           |
