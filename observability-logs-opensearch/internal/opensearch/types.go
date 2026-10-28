@@ -88,7 +88,7 @@ type ComponentLogsQueryParamsV1 struct {
 	ComponentID   string `json:"componentId,omitempty"`
 	EnvironmentID string `json:"environmentId,omitempty"`
 	ReleaseLineID string `json:"releaseLineId,omitempty"`
-	// AllReleaseLines covers every line of the component instead of its default line.
+	// AllReleaseLines covers every line of the component instead of its main line.
 	AllReleaseLines bool     `json:"allReleaseLines,omitempty"`
 	SearchPhrase    string   `json:"searchPhrase,omitempty"`
 	LogLevels       []string `json:"logLevels,omitempty"`

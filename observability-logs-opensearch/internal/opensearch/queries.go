@@ -624,8 +624,8 @@ var (
 )
 
 // releaseLineScopeFilter matches a component's documents by release line. The component UID alone
-// keeps its default line's documents, those with the UID and no release line label. A release line's
-// pods carry the component UID under another label than the default line's, so allLines matches
+// keeps its main line's documents, those with the UID and no release line label. A release line's
+// pods carry the component UID under another label than the main line's, so allLines matches
 // either label and covers every line. One release line matches on its UID alone. Returns nil without
 // a component or a line.
 func releaseLineScopeFilter(f releaseLineFields, componentID, lineID string, allLines bool) map[string]interface{} {

@@ -16,7 +16,7 @@ func TestBuildFilterWithReleaseLine(t *testing.T) {
 	}{
 		{name: "one line matches on its UID alone", line: "line-1",
 			want: base + ` + label[openchoreo_dev_release_line_uid]:"line-1"`},
-		{name: "default line",
+		{name: "main line",
 			want: base + ` + label[openchoreo_dev_component_uid]:"comp-1" + label[openchoreo_dev_release_line_uid]:""`},
 		{name: "every line", allLines: true,
 			want: base + ` + (label[openchoreo_dev_component_uid]:"comp-1" | label[openchoreo_dev_release_line_component_uid]:"comp-1")`},

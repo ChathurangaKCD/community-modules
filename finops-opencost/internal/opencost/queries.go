@@ -18,7 +18,7 @@ type AllocationQuery struct {
 	ComponentUID   string
 	// ReleaseLineUID narrows the query to one release line of the component.
 	ReleaseLineUID string
-	// AllReleaseLines covers every line of the component instead of its default line.
+	// AllReleaseLines covers every line of the component instead of its main line.
 	AllReleaseLines bool
 	Start           time.Time
 	End             time.Time
@@ -32,9 +32,9 @@ type AllocationQuery struct {
 // language is used: label lookups are label[key]:"value", clauses are
 // AND-joined with " + " and OR-joined with " | ".
 //
-// The component UID alone keeps the default line's pods, which carry no release
+// The component UID alone keeps the main line's pods, which carry no release
 // line label. A release line's pods carry the component UID under another label
-// than the default line's, so allLines matches either and covers every line. A
+// than the main line's, so allLines matches either and covers every line. A
 // release line matches on its UID alone.
 func BuildFilter(namespace, envUID, projectUID, componentUID, releaseLineUID string, allLines bool) string {
 	clauses := []string{

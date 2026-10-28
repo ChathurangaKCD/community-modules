@@ -260,7 +260,7 @@ func releaseLineApplied(releaseLineUID, componentUID *openapi_types.UUID) string
 }
 
 // allocationComponentUID is the component an allocation belongs to. A release line's pods carry
-// the component UID under another label than the default line's.
+// the component UID under another label than the main line's.
 func allocationComponentUID(alloc opencost.Allocation) string {
 	if uid := alloc.Label(opencost.LabelComponentUID); uid != "" {
 		return uid

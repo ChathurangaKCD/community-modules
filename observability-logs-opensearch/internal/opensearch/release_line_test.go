@@ -35,7 +35,7 @@ func TestReleaseLineScopeFilter(t *testing.T) {
 			want: `{"term":{"l.uid":"next-uid"}}`},
 		{name: "one line takes precedence over every line", componentID: "comp-uid", lineID: "next-uid", allLines: true,
 			want: `{"term":{"l.uid":"next-uid"}}`},
-		{name: "default line", componentID: "comp-uid",
+		{name: "main line", componentID: "comp-uid",
 			want: `{"bool":{"filter":[{"term":{"c.uid":"comp-uid"}}],"must_not":[{"exists":{"field":"l.uid"}}]}}`},
 		{name: "every line", componentID: "comp-uid", allLines: true,
 			want: `{"bool":{"minimum_should_match":1,"should":[{"term":{"c.uid":"comp-uid"}},{"term":{"lc.uid":"comp-uid"}}]}}`},
@@ -67,7 +67,7 @@ func TestBuildComponentLogsQueryV1_ReleaseLine(t *testing.T) {
 
 	if got := build(); !strings.Contains(got, `"must_not":[{"exists":{"field":"kubernetes.labels.openchoreo_dev/release-line-uid"}}]`) ||
 		strings.Contains(got, "release-line-component-uid") {
-		t.Errorf("a component query must cover its default line only: %s", got)
+		t.Errorf("a component query must cover its main line only: %s", got)
 	}
 
 	params.AllReleaseLines = true
@@ -117,7 +117,7 @@ func TestBuildLogAlertingRuleQuery_ReleaseLine(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if got := queryJSON(t, query); !strings.Contains(got, `"must_not":[{"exists":{"field":"kubernetes.labels.openchoreo_dev/release-line-uid"}}]`) {
-		t.Errorf("a default line rule must exclude release line documents: %s", got)
+		t.Errorf("a main line rule must exclude release line documents: %s", got)
 	}
 
 	params.Metadata.ReleaseLineUID = testReleaseLineID
@@ -131,11 +131,11 @@ func TestBuildLogAlertingRuleQuery_ReleaseLine(t *testing.T) {
 	}
 }
 
-// A release line's log and event entries are attributed to their component like the default line's.
+// A release line's log and event entries are attributed to their component like the main line's.
 func TestParseEntries_ReleaseLineComponentUID(t *testing.T) {
 	const componentUID = "d2108e2c-f912-4cab-a0b4-71afde25c5ac"
 	tests := map[string]struct{ logLabels, eventLabels map[string]interface{} }{
-		"default line": {
+		"main line": {
 			logLabels:   map[string]interface{}{ReplaceDots(ComponentID): componentUID},
 			eventLabels: map[string]interface{}{strings.TrimPrefix(EvComponentID, "resource."): componentUID},
 		},

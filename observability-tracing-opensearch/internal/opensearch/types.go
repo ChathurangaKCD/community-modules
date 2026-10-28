@@ -94,7 +94,7 @@ type TracesRequestParams struct {
 	Namespace         string   `json:"namespace"`
 	ProjectUID        string   `json:"projectUid"`
 	ReleaseLineUID    string   `json:"releaseLineUid,omitempty"`
-	// AllReleaseLines covers every line of the components instead of their default lines.
+	// AllReleaseLines covers every line of the components instead of their main lines.
 	AllReleaseLines bool   `json:"allReleaseLines,omitempty"`
 	SortOrder       string `json:"sortOrder,omitempty"`
 	StartTime       string `json:"startTime"`

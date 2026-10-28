@@ -203,7 +203,7 @@ func TestGetRecommendationsMetricsCoverTheCostsLines(t *testing.T) {
 		wantLine string
 	}{
 		{name: "project", params: gen.GetRecommendationsParams{ProjectUid: uuidPtr(projectUID)}, wantAll: true},
-		{name: "default line", params: gen.GetRecommendationsParams{ProjectUid: uuidPtr(projectUID), ComponentUid: uuidPtr(componentUID)}},
+		{name: "main line", params: gen.GetRecommendationsParams{ProjectUid: uuidPtr(projectUID), ComponentUid: uuidPtr(componentUID)}},
 		{name: "every line", params: gen.GetRecommendationsParams{
 			ProjectUid: uuidPtr(projectUID), ComponentUid: uuidPtr(componentUID), AllReleaseLines: &all,
 		}, wantAll: true},
@@ -257,7 +257,7 @@ func TestAllocationComponentUID(t *testing.T) {
 		labels map[string]string
 		want   string
 	}{
-		{"default line pod", map[string]string{opencost.LabelComponentUID: "comp-1"}, "comp-1"},
+		{"main line pod", map[string]string{opencost.LabelComponentUID: "comp-1"}, "comp-1"},
 		{"release line pod", map[string]string{opencost.LabelReleaseLineUID: "line-1", opencost.LabelReleaseLineComponentUID: "comp-1"}, "comp-1"},
 		{"pod of no component", map[string]string{}, ""},
 	}

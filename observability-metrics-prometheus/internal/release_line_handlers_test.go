@@ -24,9 +24,9 @@ func TestQueryMetrics_ReleaseLineHeader(t *testing.T) {
 		allLines *bool
 		want     string
 	}{
-		"one line":     {line: strPtr(lineUID), want: `label_openchoreo_dev_release_line_uid="` + lineUID + `"`},
-		"every line":   {allLines: &allLines, want: `label_openchoreo_dev_release_line_component_uid="comp-uid"`},
-		"default line": {want: `label_openchoreo_dev_component_uid="comp-uid",label_openchoreo_dev_release_line_uid=""`},
+		"one line":   {line: strPtr(lineUID), want: `label_openchoreo_dev_release_line_uid="` + lineUID + `"`},
+		"every line": {allLines: &allLines, want: `label_openchoreo_dev_release_line_component_uid="comp-uid"`},
+		"main line":  {want: `label_openchoreo_dev_component_uid="comp-uid",label_openchoreo_dev_release_line_uid=""`},
 	} {
 		t.Run(name, func(t *testing.T) {
 			var mu sync.Mutex
@@ -78,7 +78,7 @@ func TestQueryMetrics_ReleaseLineHeader(t *testing.T) {
 // An alert rule read back names its component, though a release line's expression does not.
 func TestMapPrometheusRule_ReleaseLineComponentUID(t *testing.T) {
 	const componentUID = "d2108e2c-f912-4cab-a0b4-71afde25c5ac"
-	for name, lineUID := range map[string]string{"default line": "", "release line": "93f65294-926f-475b-98f1-dc4f152f38da"} {
+	for name, lineUID := range map[string]string{"main line": "", "release line": "93f65294-926f-475b-98f1-dc4f152f38da"} {
 		t.Run(name, func(t *testing.T) {
 			pr, err := prometheus.BuildPrometheusRule(prometheus.AlertRuleParams{
 				Name: "rule", Namespace: "ns", ComponentUID: componentUID, ReleaseLineUID: lineUID,

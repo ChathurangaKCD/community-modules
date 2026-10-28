@@ -25,7 +25,7 @@ func TestTraceQueries_ReleaseLine(t *testing.T) {
 			b, _ := json.Marshal(build(params))
 			if got := string(b); !strings.Contains(got, `"must_not":[{"exists":{"field":"resource.openchoreo.dev/release-line-uid"}}]`) ||
 				strings.Contains(got, "release-line-component-uid") {
-				t.Errorf("a component query must cover its default line only: %s", got)
+				t.Errorf("a component query must cover its main line only: %s", got)
 			}
 
 			params.AllReleaseLines = true
@@ -43,11 +43,11 @@ func TestTraceQueries_ReleaseLine(t *testing.T) {
 	}
 }
 
-// A release line's spans are attributed to their component like the default line's.
+// A release line's spans are attributed to their component like the main line's.
 func TestParseSpanEntry_ReleaseLineComponentUID(t *testing.T) {
 	const componentUID = "d2108e2c-f912-4cab-a0b4-71afde25c5ac"
 	for name, resource := range map[string]map[string]interface{}{
-		"default line": {"openchoreo.dev/component-uid": componentUID},
+		"main line":    {"openchoreo.dev/component-uid": componentUID},
 		"release line": {"openchoreo.dev/release-line-component-uid": componentUID, "openchoreo.dev/release-line-uid": "93f65294-926f-475b-98f1-dc4f152f38da"},
 	} {
 		t.Run(name, func(t *testing.T) {

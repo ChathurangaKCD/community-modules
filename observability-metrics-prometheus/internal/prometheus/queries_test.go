@@ -191,7 +191,7 @@ func TestBuildPodLabels_ReleaseLines(t *testing.T) {
 		allLines bool
 		want     string
 	}{
-		{name: "default line", want: `kube_pod_labels{job="kube-state-metrics",` + base +
+		{name: "main line", want: `kube_pod_labels{job="kube-state-metrics",` + base +
 			`,label_openchoreo_dev_component_uid="c",label_openchoreo_dev_release_line_uid=""}`},
 		{name: "one release line matches on its UID alone", line: "l1", want: `kube_pod_labels{job="kube-state-metrics",` + base +
 			`,label_openchoreo_dev_release_line_uid="l1"}`},

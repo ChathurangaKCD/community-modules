@@ -41,9 +41,9 @@ func TestTraceHandlers_ReleaseLineHeader(t *testing.T) {
 		allLines   *bool
 		wantInBody string
 	}{
-		"one line":     {line: ptr(lineUID), wantInBody: lineUID},
-		"every line":   {allLines: ptr(true), wantInBody: "release-line-component-uid"},
-		"default line": {wantInBody: `"must_not"`},
+		"one line":   {line: ptr(lineUID), wantInBody: lineUID},
+		"every line": {allLines: ptr(true), wantInBody: "release-line-component-uid"},
+		"main line":  {wantInBody: `"must_not"`},
 	} {
 		t.Run(name, func(t *testing.T) {
 			body := &gen.TracesQueryRequest{

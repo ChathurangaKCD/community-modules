@@ -24,9 +24,9 @@ func TestQueryLogs_ReleaseLineHeader(t *testing.T) {
 		allLines   *bool
 		wantInBody string
 	}{
-		"one line":     {line: ptr(lineUID), wantInBody: lineUID},
-		"every line":   {allLines: ptr(true), wantInBody: "release-line-component-uid"},
-		"default line": {wantInBody: `"must_not"`},
+		"one line":   {line: ptr(lineUID), wantInBody: lineUID},
+		"every line": {allLines: ptr(true), wantInBody: "release-line-component-uid"},
+		"main line":  {wantInBody: `"must_not"`},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -71,7 +71,7 @@ func TestQueryLogs_ReleaseLineHeader(t *testing.T) {
 func TestParseMonitor_ReleaseLineComponentUID(t *testing.T) {
 	const componentUID = "d2108e2c-f912-4cab-a0b4-71afde25c5ac"
 	qb := osearch.NewQueryBuilder("logs-")
-	for name, lineUID := range map[string]string{"default line": "", "release line": "93f65294-926f-475b-98f1-dc4f152f38da"} {
+	for name, lineUID := range map[string]string{"main line": "", "release line": "93f65294-926f-475b-98f1-dc4f152f38da"} {
 		t.Run(name, func(t *testing.T) {
 			body, err := qb.BuildLogAlertingRuleMonitorBody(osearch.AlertingRuleRequest{
 				Metadata: osearch.AlertingRuleMetadata{

@@ -35,8 +35,8 @@ func prometheusLabelName(kubernetesLabel string) string {
 // BuildPodLabels builds the kube_pod_labels selector a query joins on to pick a scope's pods.
 // IDs that are empty are not matched on; the namespace is always matched.
 //
-// The component UID alone keeps the default line's pods, which carry no release line label. A release
-// line's pods carry the component UID under another label than the default line's, so allLines covers
+// The component UID alone keeps the main line's pods, which carry no release line label. A release
+// line's pods carry the component UID under another label than the main line's, so allLines covers
 // every line, as a union of two selectors. A release line matches on its UID alone.
 func BuildPodLabels(namespace, componentUID, projectUID, environmentUID, releaseLineUID string, allLines bool) string {
 	base := fmt.Sprintf("%s=%q", prometheusLabelName(LabelNamespace), namespace)
@@ -122,7 +122,7 @@ func BuildGroupLeftClause(scopeLabels []string) string {
 }
 
 // BuildComponentPodLabels builds the kube_pod_labels selector of an alert rule's component and
-// release line, without the namespace. An empty release line is the component's default line only.
+// release line, without the namespace. An empty release line is the component's main line only.
 func BuildComponentPodLabels(componentUID, projectUID, environmentUID, releaseLineUID string) string {
 	base := fmt.Sprintf(`%s=%q,%s=%q`,
 		prometheusLabelName(LabelProjectUID), projectUID, prometheusLabelName(LabelEnvironmentUID), environmentUID)

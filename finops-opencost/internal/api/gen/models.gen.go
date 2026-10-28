@@ -164,7 +164,7 @@ type GetComponentCostsParams struct {
 	ProjectUid *ProjectUid `form:"projectUid,omitempty" json:"projectUid,omitempty"`
 
 	// ComponentUid Component UID. When set, narrows the response to this single component's
-	// default line: openchoreo.dev/component-uid without an
+	// main line: openchoreo.dev/component-uid without an
 	// openchoreo.dev/release-line-uid label. Requires `projectUid` to also be set.
 	ComponentUid *ComponentUid `form:"componentUid,omitempty" json:"componentUid,omitempty"`
 
@@ -175,7 +175,7 @@ type GetComponentCostsParams struct {
 	// OpenChoreo-Release-Line-Applied response header to "true".
 	ReleaseLineUid *ReleaseLineUid `form:"releaseLineUid,omitempty" json:"releaseLineUid,omitempty"`
 
-	// AllReleaseLines Covers every line of the component, its default line and its release lines:
+	// AllReleaseLines Covers every line of the component, its main line and its release lines:
 	// openchoreo.dev/component-uid, or openchoreo.dev/release-line-component-uid,
 	// which release line pods carry instead. Requires `componentUid`, and
 	// `releaseLineUid` takes precedence. Adapters that support it set the
@@ -241,7 +241,7 @@ type GetRecommendationsParams struct {
 	// OpenChoreo-Release-Line-Applied response header to "true".
 	ReleaseLineUid *ReleaseLineUid `form:"releaseLineUid,omitempty" json:"releaseLineUid,omitempty"`
 
-	// AllReleaseLines Covers every line of the component, its default line and its release lines:
+	// AllReleaseLines Covers every line of the component, its main line and its release lines:
 	// openchoreo.dev/component-uid, or openchoreo.dev/release-line-component-uid,
 	// which release line pods carry instead. Requires `componentUid`, and
 	// `releaseLineUid` takes precedence. Adapters that support it set the

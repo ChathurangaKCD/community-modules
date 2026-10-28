@@ -277,8 +277,8 @@ const (
 )
 
 // componentScopeFilter matches spans of components by release line. The component UIDs alone keep
-// their default lines' spans, those with a component UID and no release line UID. A release line's
-// pods carry the component UID under another label than the default line's, so allLines matches
+// their main lines' spans, those with a component UID and no release line UID. A release line's
+// pods carry the component UID under another label than the main line's, so allLines matches
 // either and covers every line. One release line matches on its UID alone. Returns nil without a
 // component or a line.
 func componentScopeFilter(componentUIDs []string, releaseLineUID string, allLines bool) map[string]interface{} {
