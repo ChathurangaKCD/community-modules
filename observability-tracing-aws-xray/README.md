@@ -426,7 +426,7 @@ helm upgrade --install observability-tracing-aws-xray \
   oci://cr.openchoreo.dev/openchoreo/helm-charts/observability-tracing-aws-xray \
   --create-namespace \
   --namespace "$NS" \
-  --version 0.3.0 \
+  --version 0.5.0 \
   --set region="$AWS_REGION"
 ```
 
@@ -439,7 +439,7 @@ helm upgrade --install observability-tracing-aws-xray \
   oci://cr.openchoreo.dev/openchoreo/helm-charts/observability-tracing-aws-xray \
   --create-namespace \
   --namespace "$NS" \
-  --version 0.3.0 \
+  --version 0.5.0 \
   --set region="$AWS_REGION" \
   --set opentelemetry-collector.enabled=false
 ```
@@ -453,7 +453,7 @@ helm upgrade --install observability-tracing-aws-xray \
   oci://cr.openchoreo.dev/openchoreo/helm-charts/observability-tracing-aws-xray \
   --create-namespace \
   --namespace "$NS" \
-  --version 0.3.0 \
+  --version 0.5.0 \
   --set region="$AWS_REGION" \
   --set adapter.enabled=false
 ```
@@ -699,7 +699,7 @@ helm upgrade --install observability-tracing-aws-xray \
   oci://cr.openchoreo.dev/openchoreo/helm-charts/observability-tracing-aws-xray \
   --create-namespace \
   --namespace "$NS" \
-  --version 0.3.0 \
+  --version 0.5.0 \
   --set region="$AWS_REGION" \
   --set awsCredentials.create=true \
   --set awsCredentials.name=tracing-aws-xray-aws-credentials \
@@ -718,7 +718,7 @@ helm upgrade --install observability-tracing-aws-xray \
   oci://cr.openchoreo.dev/openchoreo/helm-charts/observability-tracing-aws-xray \
   --create-namespace \
   --namespace "$NS" \
-  --version 0.3.0 \
+  --version 0.5.0 \
   --set region="$AWS_REGION" \
   --set awsCredentials.create=true \
   --set awsCredentials.name=tracing-aws-xray-aws-credentials \
@@ -736,7 +736,7 @@ helm upgrade --install observability-tracing-aws-xray \
   oci://cr.openchoreo.dev/openchoreo/helm-charts/observability-tracing-aws-xray \
   --create-namespace \
   --namespace "$NS" \
-  --version 0.3.0 \
+  --version 0.5.0 \
   --set region="$AWS_REGION" \
   --set awsCredentials.create=true \
   --set awsCredentials.name=tracing-aws-xray-aws-credentials \
