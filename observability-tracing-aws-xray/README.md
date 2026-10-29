@@ -55,8 +55,8 @@ trace retrieval.
 | Endpoint | Purpose |
 | --- | --- |
 | `POST /api/v1alpha1/traces/query` | Queries X-Ray `GetTraceSummaries` for traces matching the search scope. |
-| `POST /api/v1alpha1/traces/{traceId}/spans/query` | Fetches all spans (segments + subsegments) for a trace via `BatchGetTraces` and flattens the segment tree. |
-| `GET /api/v1alpha1/traces/{traceId}/spans/{spanId}` | Returns full detail for a specific span within a trace, including attributes and resource attributes. |
+| `POST /api/v1alpha1/traces/{traceId}/spans/query` | Fetches a trace via `BatchGetTraces`, flattens the segment tree and returns only the spans (segments + subsegments) that match the search scope and time window. |
+| `GET /api/v1alpha1/traces/{traceId}/spans/{spanId}` | Returns full detail for a specific span within a trace, including attributes and resource attributes. Returns `404` when the trace or span is missing, or the span has no OpenChoreo namespace. |
 | `GET /healthz` | Readiness and liveness check. Returns `200` once the adapter is ready. |
 
 ### Span status
@@ -830,5 +830,6 @@ Bundled upstream Helm charts:
 
 | Module Version | OpenChoreo Version |
 |----------------|--------------------|
+| v0.5.x         | v1.2.5 and later   |
 | v0.3.x         | v1.2.x             |
 | v0.2.x         | v1.1.x             |
